@@ -1,4 +1,5 @@
 const express = require('express');
+const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const router = express.Router();
 
@@ -6,19 +7,42 @@ const router = express.Router();
 router.use(express.json());
 
 // POST request to save user data
-router.post('/', async (req, res) => {
-  try {
-    console.log(req.body);
+router.post(
+  '/',
+  [
+    body('name').isLength({ min: 3 }),
+    body('email').isEmail(),
+    body('password').isLength({ min: 3 }),
+  ],
+  async (req, res) => {
+    try {
+      // Check for validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    const user = new User(req.body);
+      const { name, email, password } = req.body;
 
-    await user.save();
+      // Check if the user with the given email already exists
+      const existingUser = await User.findOne({ email });
 
-    res.send('User data saved successfully');
-  } catch (error) {
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
 
-    res.status(500).send('Error saving user data');
+      // Create a new User instance
+      const user = new User({ name, email, password });
+
+      // Save the user data to the database
+      await user.save();
+
+      res.send(req.body);
+    } catch (error) {
+      console.error('Error saving user data:', error.message);
+      res.status(500).send('Error saving user data');
+    }
   }
-});
+);
 
 module.exports = router;
